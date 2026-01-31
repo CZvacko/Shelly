@@ -128,3 +128,8 @@ Timer.set(5000, true, checkPower);
 
 // Check virtual boolean every second
 Timer.set(1000, true, checkVirtualBoolean);
+
+/*
+https://github.com/CZvacko/Shelly/blob/main/Scripts/
+v 1.0
+*/
