@@ -116,8 +116,6 @@ function printNextTimerInvocation(timerHandle) {
 }
 
 /************** TIMERS **************/
-resetWindow();
-pollMinActPower();
 let pollTimer = Timer.set(CFG.pollEverySec * 1000, true, pollMinActPower);
 let evalTimer = Timer.set(CFG.evalEverySec * 1000, true, evalWindow);
 
@@ -130,4 +128,5 @@ This can display time of next timer invocation
 printNextTimerInvocation(evalTimer);
 
 v 1.0
+
 */
