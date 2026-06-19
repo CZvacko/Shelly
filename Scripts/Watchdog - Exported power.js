@@ -10,6 +10,9 @@ let CFG = {
   // If you want the button to be visible in the mobile app or cloud, create a User-defined group on the same page
   virtualBooleanId: 200, 
 
+  // Goal for all phases (W): you can set a goal for the exported power. Number should be negative.
+  goalW: -3,
+
   // Cloud credentials and URL are located under Shelly Cloud > User Setting > Authorization cloud key
   authKey: "someLoooongShellyApiKey",
   
@@ -20,7 +23,14 @@ let CFG = {
   sceneId: "123456789"
 };
 
-let DOG_BARKS = 0;
+let dogBarks = 0;
+
+let valuesToConsole = 0;
+
+// --- FUNCTION TO ENABLE PRINTING VALUES TO CONSOLE ---
+function printValues(state) {
+  valuesToConsole = state ? "1" : "0";
+}
 
 // --- FUNCTION TO TURN SWITCH ON/OFF ---
 function setSwitch(state) {
@@ -68,9 +78,6 @@ function addQuery(url, k, v) {
 
 // --- FUNCTION TO MONITOR PHASES ---
 function checkPower() {
-  if (DOG_BARKS == 1) { // Waits until the user manually resets the user-defined boolean
-  return;
-  }
   Shelly.call(
     "EM.GetStatus",
     { id: 0 }, // Main device ID
@@ -80,17 +87,23 @@ function checkPower() {
         return;
       }
       // For triphase profile: a_act_power, b_act_power, c_act_power
+      if (valuesToConsole == 1) {
+        print(res.a_act_power, " ", res.b_act_power, " ", res.c_act_power);
+      }      
       let powers = [
         { phase: "A", value: res.a_act_power },
         { phase: "B", value: res.b_act_power },
         { phase: "C", value: res.c_act_power }
-      ];
+      ];     
       for (let i = 0; i < powers.length; i++) {
-        if (powers[i].value < 0) {
+        if (powers[i].value < CFG.goalW) {
           print("Negative power on phase", powers[i].phase, ":", powers[i].value);
+          if (dogBarks == 1) { // Skip other steps until the user manually resets the user-defined boolean
+            return;
+          }
           setSwitch(false); // Turn off switch
           triggerCloudScene(); // Notify user
-          DOG_BARKS = 1; // Skip further evaluation once the watchdog barks
+          dogBarks = 1; // Skip further evaluation once the watchdog barks
           return; // Only need one negative phase power to trigger action
         }
       }
@@ -112,11 +125,13 @@ function checkVirtualBoolean() {
         print("Virtual Boolean triggered: Resetting Switch to ON");
         setSwitch(true);
         setDefinedBoolean(false);
-        DOG_BARKS = 0;
+        dogBarks = 0;
       }
     }
   );
 }
+
+
 
 // --- INITIALISE ---
 // Turn ON Switch on script start
@@ -129,7 +144,12 @@ Timer.set(5000, true, checkPower);
 // Check virtual boolean every second
 Timer.set(1000, true, checkVirtualBoolean);
 
-/*
+/* 
+By entering this command into the console, 
+you can enable displaying values into console
+printValues(1);
+printValues(0);
+
 https://github.com/CZvacko/Shelly/blob/main/Scripts/
-v 1.0
+v 1.2
 */
