@@ -38,31 +38,23 @@
  *
  * Debug logging (DBG below, or the "Debug logging" toggle on devices with
  * Virtual Components) prints the MAC address and RSSI of received BLE
- * advertisements, plus the raw payload when DBG_BLE_ADV_DATA is enabled.
- * DBG_MAC_FILTER narrows that output down to selected devices.
+ * advertisements, one line per device per POST interval, plus the raw payload
+ * when DBG_BLE_ADV_DATA is enabled.
+ * DBG_MAC_FILTER narrows that output down to a single device.
  */
 
 /************ USER CONFIG ************/
 const DBG = false;
 
-// How much to log about each received BLE advertisement. Only takes effect
-// while debug logging is on (DBG above, or the "Debug logging" toggle on the
-// Shelly home screen):
-//   'new' - one line per device per POST interval (readable, recommended)
-//   'all' - one line per received advertisement (very chatty, beacons
-//           typically advertise several times per second)
-//   'off' - no per-advertisement lines
-const DBG_BLE_ADV = 'new';
-
 // Also dump the raw advertisement payload (hex) under each logged line.
 const DBG_BLE_ADV_DATA = false;
 
-// Limit the debug console output to one or more BLE devices. An empty string
-// logs every device. Accepts a comma separated list; letter case, colons and
-// dashes are ignored, so 'C0:61:F9:1A:2B:3C, c061f91a2b3d' is valid.
-// While a filter is set, the per-advertisement lines are printed for the
-// listed devices only, and the POST / response debug lines only for the POSTs
-// that actually carried one of them.
+// Limit the debug console output to a single BLE device. An empty string logs
+// every device. Letter case and separators are ignored, so 'C0:61:F9:1A:2B:3C',
+// 'c0-61-f9-1a-2b-3c' and 'c061f91a2b3c' all select the same device.
+// While a filter is set, the per-advertisement lines are printed for that
+// device only, and the POST / response debug lines only for the POSTs that
+// actually carried it.
 const DBG_MAC_FILTER = '';
 /********** END USER CONFIG **********/
 
@@ -82,11 +74,10 @@ let tokenAuthBase64 = null;
 let usedKvsPassword = false;
 let bleAdvQueue = {};
 let bleAdvQueueCount = 0;
-let bleAdvDropped = 0;
 let bleAdvMatch = false;   // queue holds a device matching DBG_MAC_FILTER
 let postMatch = false;     // the POST in flight carried such a device
 let debugActive = DBG;
-let dbgMacFilterList = [];
+let dbgMacFilter = '';     // DBG_MAC_FILTER as 'aa:bb:cc:dd:ee:ff', '' = off
 let postTimer = null;
 let postInProgress = false;
 let operational = false;
@@ -120,8 +111,9 @@ function debugEnabled() {
     return debugActive;
 }
 
-// mJS has no toLowerCase(), so fold the hex letters by hand and drop the
-// separators: 'C0:61:F9' and 'c061-f9' both become 'c061f9'.
+// Runs once at startup, on the configured filter only. mJS has no
+// toLowerCase(), so fold the hex letters by hand and drop the separators:
+// 'C0:61:F9' and 'c061-f9' both become 'c061f9'.
 function dbgMacNormalize(mac) {
     let out = '';
     let i;
@@ -142,33 +134,32 @@ function dbgMacNormalize(mac) {
 }
 
 function dbgMacFilterInit() {
-    let parts = DBG_MAC_FILTER.split(',');
-    let i;
-    let mac;
+    let mac = dbgMacNormalize(DBG_MAC_FILTER);
 
-    for (i = 0; i < parts.length; i++) {
-        mac = dbgMacNormalize(parts[i]);
-        if (mac.length > 0) dbgMacFilterList.push(mac);
-    }
+    if (mac.length === 0) return;
 
-    if (dbgMacFilterList.length > 0) {
+    if (mac.length !== 12) {
         print('= Victron BLE Bridge ===');
-        print('=== Debug output limited to MAC: ' + DBG_MAC_FILTER);
+        print('=== Ignoring invalid DBG_MAC_FILTER: ' + DBG_MAC_FILTER);
+        return;
     }
+
+    // Scan results report the address in lowercase colon notation, so keep the
+    // filter in exactly that form - then matching is one string comparison and
+    // res.addr needs no conversion at all.
+    dbgMacFilter = mac[0] + mac[1] + ':' +
+        mac[2] + mac[3] + ':' +
+        mac[4] + mac[5] + ':' +
+        mac[6] + mac[7] + ':' +
+        mac[8] + mac[9] + ':' +
+        mac[10] + mac[11];
+
+    print('= Victron BLE Bridge ===');
+    print('=== Debug output limited to MAC: ' + dbgMacFilter);
 }
 
 function dbgMacMatches(addr) {
-    let norm;
-    let i;
-
-    if (dbgMacFilterList.length === 0) return true;
-
-    norm = dbgMacNormalize(addr);
-    for (i = 0; i < dbgMacFilterList.length; i++) {
-        if (dbgMacFilterList[i] === norm) return true;
-    }
-
-    return false;
+    return dbgMacFilter === '' || dbgMacFilter === addr;
 }
 
 function setStatus(msg) {
@@ -395,15 +386,12 @@ function postBLEData() {
 
     postInProgress = true;
 
-    let deviceCount = bleAdvQueueCount;
-    let droppedCount = bleAdvDropped;
-
     // Does the body about to be sent hold a device DBG_MAC_FILTER selects?
     // Kept until the response arrives so both debug blocks agree.
     postMatch = bleAdvMatch;
 
     if (numberDevicesHandle) {
-        numberDevicesHandle.setValue(deviceCount);
+        numberDevicesHandle.setValue(bleAdvQueueCount);
     }
 
     let body = JSON.stringify({
@@ -414,18 +402,13 @@ function postBLEData() {
     });
     bleAdvQueue = {};
     bleAdvQueueCount = 0;
-    bleAdvDropped = 0;
     bleAdvMatch = false;
 
     let url = 'https://' + host + '/ble-gw/';
 
     if (debugEnabled() && postMatch) {
         print('POST URL: ' + url);
-        print('POST body length: ' + body.length + ' bytes, devices: ' + deviceCount);
-        if (droppedCount > 0) {
-            print('WARNING: ' + droppedCount + ' advertisement(s) dropped, more than ' +
-                MAX_DEVICES_PER_POST + ' devices in range');
-        }
+        print('POST body length: ' + body.length + ' bytes');
     }
 
     Shelly.call('HTTP.Request', {
@@ -441,9 +424,9 @@ function postBLEData() {
     }, handlePostBLEDataResponse);
 }
 
-function logBLEAdv(tag, res, data) {
+function logBLEAdv(res, data) {
     // >> 1 instead of / 2 so the byte count always prints as an integer.
-    let line = 'BLE ' + tag + ' ' + res.addr + '  RSSI ' + res.rssi + ' dBm  ' +
+    let line = 'BLE ' + res.addr + '  RSSI ' + res.rssi + ' dBm  ' +
         (data.length >> 1) + ' B';
 
     if (typeof res.local_name === 'string' && res.local_name.length > 0) {
@@ -479,19 +462,14 @@ function onBLEScan(ev, res) {
 
     let data = (res.advData ? btoh(res.advData) : '') + (res.scanRsp ? btoh(res.scanRsp) : '');
 
-    // Normalizing the address is only worth it while debug output is on.
+    // Decide whether to show the debug message for this address.
     let logThis = debugActive && dbgMacMatches(res.addr);
 
     let entry = bleAdvQueue[res.addr];
     if (entry) {
         entry.rssi = res.rssi;
         entry.data = data;
-        if (logThis) {
-            bleAdvMatch = true;
-            if (DBG_BLE_ADV === 'all') {
-                logBLEAdv('upd ', res, data);
-            }
-        }
+        if (logThis) bleAdvMatch = true;
     } else if (bleAdvQueueCount < MAX_DEVICES_PER_POST) {
         bleAdvQueue[res.addr] = {
             rssi: res.rssi,
@@ -500,15 +478,7 @@ function onBLEScan(ev, res) {
         bleAdvQueueCount++;
         if (logThis) {
             bleAdvMatch = true;
-            if (DBG_BLE_ADV !== 'off') {
-                logBLEAdv('new ', res, data);
-            }
-        }
-    } else {
-        // Queue is full for this interval - count it and report once per POST.
-        bleAdvDropped++;
-        if (logThis && DBG_BLE_ADV === 'all') {
-            logBLEAdv('drop', res, data);
+            logBLEAdv(res, data);
         }
     }
 }
