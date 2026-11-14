@@ -6,3 +6,7 @@ It monitors exported power (to the grid) and can inform user via Shelly Cloud Sc
 
 **Shelly Pro 3 EM** - [Watchdog - Standby power](/Scripts/Watchdog%20-%20Standby%20power.js)  
 Monitors whether standby power consumption has been normal over the past 24 hours. A power consumption limit must be set for each phase. If the target is not met, a notification will be sent via Shelly Cloud Scene.  It is necessary to use a Triphase Profile!  
+
+  
+**Shelly** - [BLE bridge to Victron](/Scripts/victron-ble-bridge.shelly-debugCanDisplayMacAndAlsoFilter.js)  
+Unofficial version that can display the MAC address of the relevant device  
