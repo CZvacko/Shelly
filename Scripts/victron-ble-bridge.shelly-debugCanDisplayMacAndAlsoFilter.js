@@ -9,7 +9,7 @@
  *   Original script came from:
  * @link https://github.com/ALLTERCO/shelly-script-examples/blob/main/power-energy/victron-ble-bridge.shelly.js
  *   Location of modified script: 
- *   
+ *   https://github.com/CZvacko/Shelly/blob/main/Scripts/victron-ble-bridge.shelly-debugCanDisplayMacAndAlsoFilter.js
  */
 
 /**
