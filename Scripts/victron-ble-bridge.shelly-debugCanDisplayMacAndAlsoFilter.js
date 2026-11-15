@@ -13,7 +13,7 @@
  */
 
 /**
- * Victron BLE Bridge (unofficial version that can display the MAC address of the relevant device)
+ * Victron BLE Bridge (unofficial modified version)
  *
  * Continuously scans BLE advertisements and forwards packets
  * immediately via HTTP POST.
@@ -36,11 +36,10 @@
  * by affected Shelly firmware versions, so existing components are reused
  * after a restart instead of being duplicated.
  *
- * Debug logging (DBG below, or the "Debug logging" toggle on devices with
- * Virtual Components) prints the MAC address and RSSI of received BLE
- * advertisements, one line per device per POST interval, plus the raw payload
- * when DBG_BLE_ADV_DATA is enabled.
- * DBG_MAC_FILTER narrows that output down to a single device.
+ * Note on unofficial modifications:
+ * It can display the MAC address and RSSI of the relevant device when debugging is enabled.
+ * You can also set the MAC address of a single device to be used as a display filter (to show BLE advertisements and HTTP POSTs only for that device).
+ * It can also show the raw payload when DBG_BLE_ADV_DATA is enabled.
  */
 
 /************ USER CONFIG ************/
