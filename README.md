@@ -9,4 +9,4 @@ Monitors whether standby power consumption has been normal over the past 24 hour
 
   
 **Shelly** - [BLE bridge to Victron](/Scripts/victron-ble-bridge.shelly-debugCanDisplayMacAndAlsoFilter.js)  
-Unofficial version that can display the MAC address of the relevant device  
+Unofficial version that can display the MAC address and RSSI of the relevant device when debugging is enabled.
