@@ -487,13 +487,13 @@ function stopBLEScanning() {
         Timer.clear(postTimer);
         postTimer = null;
     }
-    BLE.Scanner.Stop();
+    BLE.Scanner.stop();
 }
 
 function startBLEScanning() {
-    BLE.Scanner.Stop();
+    BLE.Scanner.stop();
     BLE.Scanner.Subscribe(onBLEScan);
-    BLE.Scanner.Start({ duration_ms: BLE.Scanner.INFINITE_SCAN, active: true });
+    BLE.Scanner.start({ duration_ms: BLE.Scanner.INFINITE_SCAN, active: true });
 
     if (postTimer === null) {
         postTimer = Timer.set(POST_INTERVAL_MS, true, postBLEData);
